@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>TEA Sky Engine v4 - Real Astronomy</title>
+<style>
+body{margin:0;background:black;overflow:hidden;color:cyan;font-family:Arial;}
+canvas{display:block;}
+#info{
+ position:absolute;
+ top:10px;
+ left:50%;
+ transform:translateX(-50%);
+ background:rgba(0,0,0,0.7);
+ padding:10px 20px;
+ border-radius:20px;
+ box-shadow:0 0 20px cyan;
+}
+</style>
+</head>
+<body>
+
+<div id="info">Mendeteksi lokasi...</div>
+<canvas id="sky"></canvas>
+
+<script>
+const canvas = document.getElementById("sky");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let latitude = 0;
+let longitude = 0;
+
+navigator.geolocation.getCurrentPosition(pos=>{
+ latitude = pos.coords.latitude;
+ longitude = pos.coords.longitude;
+ document.getElementById("info").innerHTML =
+  "Lat: "+latitude.toFixed(2)+" | Lon: "+longitude.toFixed(2);
+ animate();
+}, ()=>{
+ alert("GPS gagal. Aktifkan lokasi.");
+});
+
+function toRadians(deg){ return deg*Math.PI/180; }
+function toDegrees(rad){ return rad*180/Math.PI; }
+
+function getJulianDate(date){
+ return date/86400000 + 2440587.5;
+}
+
+function getSunPosition(date, lat, lon){
+
+ let jd = getJulianDate(date);
+ let n = jd - 2451545.0;
+
+ let L = (280.46 + 0.9856474*n) % 360;
+ let g = (357.528 + 0.9856003*n) % 360;
+
+ let lambda = L + 1.915*Math.sin(toRadians(g)) +
+               0.02*Math.sin(toRadians(2*g));
+
+ let epsilon = 23.439 - 0.0000004*n;
+
+ let RA = toDegrees(Math.atan2(
+     Math.cos(toRadians(epsilon)) *
+     Math.sin(toRadians(lambda)),
+     Math.cos(toRadians(lambda))
+ ));
+
+ let decl = toDegrees(Math.asin(
+     Math.sin(toRadians(epsilon)) *
+     Math.sin(toRadians(lambda))
+ ));
+
+ let GMST = (280.46061837 + 360.98564736629*(jd-2451545)) % 360;
+ let LST = (GMST + lon) % 360;
+
+ let HA = (LST - RA) % 360;
+
+ let altitude = toDegrees(Math.asin(
+   Math.sin(toRadians(lat))*Math.sin(toRadians(decl)) +
+   Math.cos(toRadians(lat))*Math.cos(toRadians(decl))*
+   Math.cos(toRadians(HA))
+ ));
+
+ let azimuth = toDegrees(Math.atan2(
+   -Math.sin(toRadians(HA)),
+   Math.tan(toRadians(decl))*Math.cos(toRadians(lat)) -
+   Math.sin(toRadians(lat))*Math.cos(toRadians(HA))
+ ));
+
+ return {altitude, azimuth};
+}
+
+function drawSky(altitude){
+ if(altitude > 0){
+   ctx.fillStyle="rgb(0,0,50)";
+ } else {
+   ctx.fillStyle="black";
+ }
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function drawSun(alt){
+ let y = canvas.height - ((alt+90)/180)*canvas.height;
+ ctx.beginPath();
+ ctx.arc(canvas.width/2,y,20,0,Math.PI*2);
+ ctx.fillStyle="yellow";
+ ctx.fill();
+}
+
+function animate(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ let now = new Date();
+ let sun = getSunPosition(now, latitude, longitude);
+ drawSky(sun.altitude);
+ drawSun(sun.altitude);
+ requestAnimationFrame(animate);
+}
+</script>
+
+</body>
+</html>
